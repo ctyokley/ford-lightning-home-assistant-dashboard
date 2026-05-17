@@ -1,0 +1,444 @@
+###############################################################################
+# Ford F-150 Lightning - FordPass Style Remote Climate Controls
+###############################################################################
+
+input_number:
+  lightning_remote_climate_temp_f:
+    name: Lightning Remote Climate Temperature
+    min: 60
+    max: 86
+    step: 1
+    unit_of_measurement: "°F"
+    mode: slider
+    icon: mdi:thermostat
+
+
+###############################################################################
+# Seat Climate UI Helpers
+###############################################################################
+
+input_select:
+  lightning_front_left_seat_request:
+    name: Lightning Front Left Seat Request
+    options:
+      - "off"
+      - heated1
+      - heated2
+      - heated3
+      - cooled1
+      - cooled2
+      - cooled3
+    initial: "off"
+
+  lightning_front_right_seat_request:
+    name: Lightning Front Right Seat Request
+    options:
+      - "off"
+      - heated1
+      - heated2
+      - heated3
+      - cooled1
+      - cooled2
+      - cooled3
+    initial: "off"
+
+  lightning_rear_left_seat_request:
+    name: Lightning Rear Left Seat Request
+    options:
+      - "off"
+      - heated1
+      - heated2
+      - heated3
+    initial: "off"
+
+  lightning_rear_right_seat_request:
+    name: Lightning Rear Right Seat Request
+    options:
+      - "off"
+      - heated1
+      - heated2
+      - heated3
+    initial: "off"
+
+shell_command:
+  lightning_cycle_seat_climate_helper: >-
+    python3 /config/lightning_tools/cycle_seat_climate_helper.py "{{ ford_entity }}" "{{ helper_entity }}" "{{ mode }}"
+
+  lightning_cycle_seat_climate: >-
+    python3 /config/lightning_tools/cycle_seat_climate.py "{{ entity_id }}" "{{ mode }}"
+
+script:
+  #########################################################################
+  # Main remote climate
+  #########################################################################
+
+  lightning_start_remote_climate:
+    alias: Lightning - Start Remote Climate
+    mode: single
+    sequence:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.fordpass_{{VIN_LOWER}}_ignition
+
+  lightning_stop_remote_climate:
+    alias: Lightning - Stop Remote Climate
+    mode: single
+    sequence:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.fordpass_{{VIN_LOWER}}_ignition
+
+  lightning_extend_remote_climate:
+    alias: Lightning - Extend Remote Climate
+    mode: single
+    sequence:
+      - service: button.press
+        target:
+          entity_id: button.fordpass_{{VIN_LOWER}}_extendremotestart
+
+  #########################################################################
+  # Temperature presets
+  #########################################################################
+
+  lightning_remote_temp_low:
+    alias: Lightning - Remote Climate Temp LO
+    mode: single
+    sequence:
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rcctemperature
+        data:
+          option: lo
+
+  lightning_remote_temp_high:
+    alias: Lightning - Remote Climate Temp HI
+    mode: single
+    sequence:
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rcctemperature
+        data:
+          option: hi
+
+  lightning_set_remote_temp_from_slider:
+    alias: Lightning - Set Remote Temp From Slider
+    mode: restart
+    sequence:
+      - variables:
+          f: "{{ states('input_number.lightning_remote_climate_temp_f') | int(72) }}"
+          option: >
+            {% if f <= 60 %}
+              lo
+            {% elif f >= 86 %}
+              hi
+            {% else %}
+              {% set half_steps = (((f - 32) * 5 / 9) * 2) | round(0) | int %}
+              {% set whole = half_steps // 2 %}
+              {% set half = half_steps % 2 %}
+              {{ whole ~ '_' ~ (5 if half == 1 else 0) }}
+            {% endif %}
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rcctemperature
+        data:
+          option: "{{ option | trim }}"
+
+  #########################################################################
+  # Defrost / wheel
+  #########################################################################
+
+  lightning_toggle_front_defrost:
+    alias: Lightning - Toggle Front Defrost
+    mode: single
+    sequence:
+      - service: switch.toggle
+        target:
+          entity_id: switch.fordpass_{{VIN_LOWER}}_rccdefrostfront
+
+  lightning_toggle_rear_defrost:
+    alias: Lightning - Toggle Rear Defrost
+    mode: single
+    sequence:
+      - service: switch.toggle
+        target:
+          entity_id: switch.fordpass_{{VIN_LOWER}}_rccdefrostrear
+
+  lightning_toggle_heated_steering_wheel:
+    alias: Lightning - Toggle Heated Steering Wheel
+    mode: single
+    sequence:
+      - service: switch.toggle
+        target:
+          entity_id: switch.fordpass_{{VIN_LOWER}}_rccsteeringwheel
+
+  #########################################################################
+  # Seat climate pure HA cycle scripts
+  #########################################################################
+
+  lightning_front_left_seat_heat_cycle:
+    alias: Lightning - Front Left Seat Heat Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_front_left_seat_request') }}"
+          next_option: >
+            {% if current == 'heated1' %}heated2
+            {% elif current == 'heated2' %}heated3
+            {% elif current == 'heated3' %}off
+            {% else %}heated1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_front_left_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatfrontleft
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_front_left_seat_cool_cycle:
+    alias: Lightning - Front Left Seat Cool Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_front_left_seat_request') }}"
+          next_option: >
+            {% if current == 'cooled1' %}cooled2
+            {% elif current == 'cooled2' %}cooled3
+            {% elif current == 'cooled3' %}off
+            {% else %}cooled1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_front_left_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatfrontleft
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_front_right_seat_heat_cycle:
+    alias: Lightning - Front Right Seat Heat Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_front_right_seat_request') }}"
+          next_option: >
+            {% if current == 'heated1' %}heated2
+            {% elif current == 'heated2' %}heated3
+            {% elif current == 'heated3' %}off
+            {% else %}heated1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_front_right_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatfrontright
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_front_right_seat_cool_cycle:
+    alias: Lightning - Front Right Seat Cool Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_front_right_seat_request') }}"
+          next_option: >
+            {% if current == 'cooled1' %}cooled2
+            {% elif current == 'cooled2' %}cooled3
+            {% elif current == 'cooled3' %}off
+            {% else %}cooled1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_front_right_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatfrontright
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_rear_left_seat_heat_cycle:
+    alias: Lightning - Rear Left Seat Heat Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_rear_left_seat_request') }}"
+          next_option: >
+            {% if current == 'heated1' %}heated2
+            {% elif current == 'heated2' %}heated3
+            {% elif current == 'heated3' %}off
+            {% else %}heated1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_rear_left_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatrearleft
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_rear_right_seat_heat_cycle:
+    alias: Lightning - Rear Right Seat Heat Cycle
+    mode: single
+    sequence:
+      - variables:
+          current: "{{ states('input_select.lightning_rear_right_seat_request') }}"
+          next_option: >
+            {% if current == 'heated1' %}heated2
+            {% elif current == 'heated2' %}heated3
+            {% elif current == 'heated3' %}off
+            {% else %}heated1
+            {% endif %}
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.lightning_rear_right_seat_request
+        data:
+          option: "{{ next_option | trim }}"
+      - service: select.select_option
+        target:
+          entity_id: select.fordpass_{{VIN_LOWER}}_rccseatrearright
+        data:
+          option: "{{ next_option | trim }}"
+
+  lightning_sync_seat_helpers_from_fordpass:
+    alias: Lightning - Sync Seat Helpers From FordPass
+    mode: restart
+    sequence:
+      - service: button.press
+        target:
+          entity_id: button.fordpass_{{VIN_LOWER}}_update_data
+
+      - delay: "00:00:03"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {{ states('select.fordpass_{{VIN_LOWER}}_rccseatfrontleft') in state_attr('input_select.lightning_front_left_seat_request', 'options') }}
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.lightning_front_left_seat_request
+                data:
+                  option: "{{ states('select.fordpass_{{VIN_LOWER}}_rccseatfrontleft') }}"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {{ states('select.fordpass_{{VIN_LOWER}}_rccseatfrontright') in state_attr('input_select.lightning_front_right_seat_request', 'options') }}
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.lightning_front_right_seat_request
+                data:
+                  option: "{{ states('select.fordpass_{{VIN_LOWER}}_rccseatfrontright') }}"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {{ states('select.fordpass_{{VIN_LOWER}}_rccseatrearleft') in state_attr('input_select.lightning_rear_left_seat_request', 'options') }}
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.lightning_rear_left_seat_request
+                data:
+                  option: "{{ states('select.fordpass_{{VIN_LOWER}}_rccseatrearleft') }}"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {{ states('select.fordpass_{{VIN_LOWER}}_rccseatrearright') in state_attr('input_select.lightning_rear_right_seat_request', 'options') }}
+            sequence:
+              - service: input_select.select_option
+                target:
+                  entity_id: input_select.lightning_rear_right_seat_request
+                data:
+                  option: "{{ states('select.fordpass_{{VIN_LOWER}}_rccseatrearright') }}"
+
+  lightning_toggle_remote_climate:
+    alias: Lightning - Toggle Remote Climate
+    mode: restart
+    sequence:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: switch.fordpass_{{VIN_LOWER}}_ignition
+                state: "on"
+            sequence:
+              - service: script.turn_on
+                target:
+                  entity_id: script.lightning_stop_remote_climate
+        default:
+          - service: script.turn_on
+            target:
+              entity_id: script.lightning_start_remote_climate
+
+
+automation:
+  - id: lightning_remote_climate_slider_to_fordpass
+    alias: Lightning - Remote Climate Slider To FordPass
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_number.lightning_remote_climate_temp_f
+    action:
+      - service: script.lightning_set_remote_temp_from_slider
+  - id: lightning_remote_climate_fordpass_to_slider
+    alias: Lightning - FordPass Temp To Slider
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: select.fordpass_{{VIN_LOWER}}_rcctemperature
+    action:
+      - variables:
+          raw: "{{ states('select.fordpass_{{VIN_LOWER}}_rcctemperature') }}"
+          value: >
+            {% if raw == 'lo' %}
+              60
+            {% elif raw == 'hi' %}
+              86
+            {% else %}
+              {% set cleaned = raw | replace('_5', '.5') %}
+              {% set c = cleaned | float(22) %}
+              {{ ((c * 9 / 5) + 32) | round(0) | int }}
+            {% endif %}
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.lightning_remote_climate_temp_f
+        data:
+          value: "{{ value }}"
+
+  - id: lightning_sync_seats_when_remote_climate_starts
+    alias: Lightning - Sync Seats When Remote Climate Starts
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: switch.fordpass_{{VIN_LOWER}}_ignition
+        to: "on"
+      - platform: state
+        entity_id: sensor.fordpass_{{VIN_LOWER}}_remotestartstatus
+    condition:
+      - condition: template
+        value_template: >
+          {% set rc = states('sensor.fordpass_{{VIN_LOWER}}_remotestartstatus') | lower %}
+          {{ is_state('switch.fordpass_{{VIN_LOWER}}_ignition', 'on') or 'on' in rc or 'running' in rc or 'started' in rc }}
+    action:
+      - delay: "00:00:10"
+      - service: script.lightning_sync_seat_helpers_from_fordpass
+

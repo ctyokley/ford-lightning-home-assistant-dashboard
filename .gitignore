@@ -1,0 +1,21 @@
+# Home Assistant/local generated files
+*.log
+*.db
+*.db-*
+*.storage
+secrets.yaml
+known_devices.yaml
+deps/
+tts/
+www/community/
+
+# Local install output
+*.tar.gz
+
+# Do not commit generated real-VIN files if someone runs installer in-place
+packages/*.yaml
+dashboards/*.yaml
+
+# Keep templates
+!packages/*.yaml.template
+!dashboards/*.yaml.template
