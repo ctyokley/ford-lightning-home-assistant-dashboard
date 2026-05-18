@@ -15,6 +15,13 @@ WWW_DIR="/config/www"
 VIN_UPPER="${VIN_UPPER:-}"
 VIN_LOWER="${VIN_LOWER:-}"
 
+SLIDER_JS_NAME="lightning-temp-slider-card.js"
+SLIDER_JS_URL="/local/${SLIDER_JS_NAME}"
+SLIDER_JS_VERSION="$(date +%Y%m%d%H%M%S)"
+SLIDER_JS_URL_VERSIONED="${SLIDER_JS_URL}?v=${SLIDER_JS_VERSION}"
+
+HA_API_BASE="http://supervisor/core/api"
+
 if [ -z "$VIN_UPPER" ]; then
   echo "Enter your FordPass VIN in uppercase or lowercase:"
   read -r VIN_INPUT
@@ -56,6 +63,75 @@ copy_template() {
   echo "Installed: $dst"
 }
 
+install_lovelace_resource() {
+  echo
+  echo "===== Configuring Lovelace frontend resource ====="
+
+  if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
+    echo "WARNING: SUPERVISOR_TOKEN is not available."
+    echo "Cannot automatically add Lovelace resource."
+    echo
+    echo "Add this manually:"
+    echo "  URL: ${SLIDER_JS_URL_VERSIONED}"
+    echo "  Type: JavaScript module"
+    return 0
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "WARNING: jq is not installed. Cannot automatically inspect/update Lovelace resources."
+    echo
+    echo "Add this manually:"
+    echo "  URL: ${SLIDER_JS_URL_VERSIONED}"
+    echo "  Type: JavaScript module"
+    return 0
+  fi
+
+  local resources_json
+  resources_json="$(curl -s \
+    -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${HA_API_BASE}/config/lovelace/resources" || true)"
+
+  if ! echo "$resources_json" | jq . >/dev/null 2>&1; then
+    echo "WARNING: Could not read Lovelace resources from Home Assistant API."
+    echo
+    echo "Response was:"
+    echo "$resources_json"
+    echo
+    echo "Add this manually:"
+    echo "  URL: ${SLIDER_JS_URL_VERSIONED}"
+    echo "  Type: JavaScript module"
+    return 0
+  fi
+
+  local existing_id
+  existing_id="$(echo "$resources_json" | jq -r \
+    --arg base "$SLIDER_JS_URL" \
+    '.[] | select((.url | split("?")[0]) == $base) | .id' | head -n 1)"
+
+  if [ -n "$existing_id" ] && [ "$existing_id" != "null" ]; then
+    echo "Existing Lovelace resource found. Updating cache-busted URL..."
+    curl -s -X PUT \
+      -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "{\"res_type\":\"module\",\"url\":\"${SLIDER_JS_URL_VERSIONED}\"}" \
+      "${HA_API_BASE}/config/lovelace/resources/${existing_id}" >/dev/null
+
+    echo "Updated Lovelace resource:"
+    echo "  ${SLIDER_JS_URL_VERSIONED}"
+  else
+    echo "No existing Lovelace resource found. Creating it..."
+    curl -s -X POST \
+      -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "{\"res_type\":\"module\",\"url\":\"${SLIDER_JS_URL_VERSIONED}\"}" \
+      "${HA_API_BASE}/config/lovelace/resources" >/dev/null
+
+    echo "Added Lovelace resource:"
+    echo "  ${SLIDER_JS_URL_VERSIONED}"
+  fi
+}
+
 echo "===== Installing package files ====="
 
 copy_template "$EXPORT_ROOT/packages/ford_lightning_climate_buttons.yaml.template" \
@@ -87,6 +163,21 @@ if [ -f "$EXPORT_ROOT/www/lightning_temp_gradient.svg" ]; then
   echo "Installed: $WWW_DIR/lightning_temp_gradient.svg"
 fi
 
+install_lovelace_resource
+
+echo
+echo "===== Checking Home Assistant YAML config ====="
+
+if curl -s \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN:-}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${HA_API_BASE}/config/core/check_config" >/dev/null 2>&1; then
+  echo "Home Assistant config check requested."
+else
+  echo "Could not request config check automatically."
+fi
+
 echo
 echo "============================================"
 echo " Install complete"
@@ -94,20 +185,18 @@ echo "============================================"
 echo
 echo "Next steps:"
 echo
-echo "1. Make sure this is in configuration.yaml:"
+echo "1. Make sure this exists in /config/configuration.yaml:"
 echo
 echo "   homeassistant:"
 echo "     packages: !include_dir_named packages"
 echo
-echo "2. Add this Lovelace resource in Home Assistant:"
+echo "2. Restart Home Assistant."
 echo
-echo "   URL: /local/lightning-temp-slider-card.js?v=$(date +%Y%m%d%H%M%S)"
-echo "   Type: JavaScript module"
+echo "3. Hard refresh the browser or fully close/reopen the mobile app."
 echo
-echo "   UI path:"
-echo "   Settings > Dashboards > Three-dot menu > Resources > Add Resource"
+echo "4. If the custom slider still does not load, verify this resource exists:"
 echo
-echo "3. Restart Home Assistant."
+echo "   Settings > Dashboards > Three-dot menu > Resources"
 echo
-echo "4. Hard refresh the browser or fully close/reopen the mobile app."
+echo "   ${SLIDER_JS_URL_VERSIONED}"
 echo
