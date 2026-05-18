@@ -1,0 +1,85 @@
+template:
+  - sensor:
+      - name: Lightning Front Left Tire Pressure
+        unique_id: lightning_front_left_tire_pressure
+        icon: mdi:car-tire-alert
+        unit_of_measurement: psi
+        state_class: measurement
+        state: >
+          {% set raw = state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontLeft') %}
+          {% if raw not in ['unknown', 'unavailable', none, ''] %}
+            {% set bar = raw | regex_replace('[^0-9.]', '') | float(0) %}
+            {{ (bar * 14.5038) | round(1) }}
+          {% else %}
+            unknown
+          {% endif %}
+        attributes:
+          tire_position: Front Left
+          raw_bar_value: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontLeft') }}"
+          tire_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontLeft_state') }}"
+
+      - name: Lightning Front Right Tire Pressure
+        unique_id: lightning_front_right_tire_pressure
+        icon: mdi:car-tire-alert
+        unit_of_measurement: psi
+        state_class: measurement
+        state: >
+          {% set raw = state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontRight') %}
+          {% if raw not in ['unknown', 'unavailable', none, ''] %}
+            {% set bar = raw | regex_replace('[^0-9.]', '') | float(0) %}
+            {{ (bar * 14.5038) | round(1) }}
+          {% else %}
+            unknown
+          {% endif %}
+        attributes:
+          tire_position: Front Right
+          raw_bar_value: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontRight') }}"
+          tire_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontRight_state') }}"
+
+      - name: Lightning Rear Left Tire Pressure
+        unique_id: lightning_rear_left_tire_pressure
+        icon: mdi:car-tire-alert
+        unit_of_measurement: psi
+        state_class: measurement
+        state: >
+          {% set raw = state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearLeft') %}
+          {% if raw not in ['unknown', 'unavailable', none, ''] %}
+            {% set bar = raw | regex_replace('[^0-9.]', '') | float(0) %}
+            {{ (bar * 14.5038) | round(1) }}
+          {% else %}
+            unknown
+          {% endif %}
+        attributes:
+          tire_position: Rear Left
+          raw_bar_value: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearLeft') }}"
+          tire_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearLeft_state') }}"
+
+      - name: Lightning Rear Right Tire Pressure
+        unique_id: lightning_rear_right_tire_pressure
+        icon: mdi:car-tire-alert
+        unit_of_measurement: psi
+        state_class: measurement
+        state: >
+          {% set raw = state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearRight') %}
+          {% if raw not in ['unknown', 'unavailable', none, ''] %}
+            {% set bar = raw | regex_replace('[^0-9.]', '') | float(0) %}
+            {{ (bar * 14.5038) | round(1) }}
+          {% else %}
+            unknown
+          {% endif %}
+        attributes:
+          tire_position: Rear Right
+          raw_bar_value: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearRight') }}"
+          tire_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearRight_state') }}"
+
+      - name: Lightning Tire Pressure Status
+        unique_id: lightning_tire_pressure_status
+        icon: mdi:car-tire-alert
+        state: >
+          {{ states('sensor.fordpass_{{VIN_LOWER}}_tirepressure') }}
+        attributes:
+          system_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'systemState') }}"
+          front_left_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontLeft_state') }}"
+          front_right_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'frontRight_state') }}"
+          rear_left_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearLeft_state') }}"
+          rear_right_state: "{{ state_attr('sensor.fordpass_{{VIN_LOWER}}_tirepressure', 'rearRight_state') }}"
